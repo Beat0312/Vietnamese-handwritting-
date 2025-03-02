@@ -1,0 +1,60 @@
+!pip install gradio
+!pip install zhipuai
+
+
+import gradio as gr
+import requests
+import base64
+import io
+from PIL import Image
+import numpy as np
+from zhipuai import ZhipuAI
+
+# Thay API Key của bạn tại đây
+API_KEY = "d659608f7d5d42b1821a9303fc50b618.NesCuIytwpxjxpBJ"
+
+# Khởi tạo ZhipuAI client
+client = ZhipuAI(api_key=API_KEY)
+
+def extract_text(image):
+    if isinstance(image, np.ndarray):  # Chuyển NumPy array thành ảnh
+        image = Image.fromarray(image)
+
+    # Chuyển đổi ảnh sang Base64
+    buffered = io.BytesIO()
+    image.save(buffered, format="PNG")
+    image_base64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
+
+    # Gửi yêu cầu đến GLM-4V
+    response = client.chat.completions.create(
+        model="glm-4v-plus",
+        messages=[
+            {
+                "role": "user",
+                "content": [
+                    {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{image_base64}"}},
+                    {"type": "text", "text": "Hãy trích xuất toàn bộ chữ viết tay trong ảnh, giữ nguyên dấu câu, giữ dấu của từng chữ, khoảng cách dòng, và chính tả như trong ảnh."}
+                ]
+            }
+        ]
+    )
+
+    # Xử lý phản hồi từ API
+    if response and response.choices:
+        text = response.choices[0].message.content
+        with open("output.md", "w", encoding="utf-8") as f:
+            f.write(text)
+        return text
+    else:
+        return "Lỗi: Không nhận được kết quả từ API."
+
+# Giao diện Gradio
+demo = gr.Interface(
+    fn=extract_text,
+    inputs="image",
+    outputs="text",
+    title="Vietnamese Handwriting OCR ",
+    description="Upload an image to extract handwritten text using ZhipuAI's GLM-4V model."
+)
+
+demo.launch(debug=True)
